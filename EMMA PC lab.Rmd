@@ -1,0 +1,1067 @@
+---
+title: "PC lab 1: (Non-)linear and quantile regression models"
+output:
+  html_document:
+    df_print: paged
+  pdf_document:
+    keep_tex: true
+    includes:
+      in_header: extras_layout.tex
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, comment="", 
+                      #class.output="shadebox", 
+                      echo = TRUE, #hide code from the final document
+                      eval = TRUE, 
+                      include=FALSE) #hide both code and output from the final document
+```
+
+```{r, include=FALSE}
+rm(list=ls( ))
+setwd("C:/Users/emmab/OneDrive/Documenti/PhD/Unidistance/Sarina_PC Labs EMA/PC Lab 1")
+```
+
+\definecolor{shadecolor}{RGB}{246, 246, 246}
+
+\begin{bluebox}
+Quiz No. 1 consists of questions 1.1 to 1.4, 1.19, 1.23.
+\end{bluebox}
+
+# Part 1: Linear and non-linear regression models
+
+```{r}
+############################
+#  Get data and package    #
+############################
+
+rm(list=ls( ))
+#remove old data in memory
+
+library(lmtest)
+library(sandwich)
+library(mfx) # Marginal Effects, Odds Ratios and Incidence Rate Ratios for GLMs
+library(censReg) # for Tobit
+#load libraries
+
+
+load("JobCorps_PC1.RData")
+#load data
+
+attach(JC)
+# every variable in "JobCorps_PC1" loaded into work space
+```
+
+\vspace{2mm}
+
+## Labor Force Participation and Hours Worked
+
+Please use the dataset **"JobCorps_PC1_\the\year"** for the first part of this PC lab. This data set contains information on participants in an experimental study assessing Job Corps, one of the largest educational programs for disadvantaged youths in the US. The file includes, among others, the following variables:
+
+```{r, include=FALSE}
+knitr::kable(head(mtcars[, 1:4]), "latex")
+```
+
+\vspace{2mm}
+
+\begin{tabularx}{\textwidth}{ll}
+\toprule
+\textbf{Variable name} & \textbf{Description} \\
+\midrule
+assignment & 1=randomly assigned to Job Corps, 0=randomized out of Job Corps \\
+female &    1=female, 0=male \\
+age &   age in years at assignment \\
+geddegree & 1=has a GED degree at assignment \\
+hsdegree &  1=has a high school degree at assignment \\
+haschild &  1=has at least one child, 0=no children at assignment \\
+pworky3 & proportion of weeks employed in third year after assignment \\
+earny3 & weekly earnings in third year after assignment \\
+\bottomrule
+\end{tabularx}
+
+## Questions
+
+```{r,include=FALSE}
+#Question 1
+```
+\vspace{1mm}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries]
+\item \textbf{Consider descriptive statistics of the variable $\bm{assignment}$ (random assignment to Job Corps). What is the proportion of individuals randomized into (i.e. given access to) the training program?}
+\end{enumerate}
+\vspace{3pt}
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("
+For how to install and load packages in R see e.g. \\url{https://bookdown.org/nana/intror/install-and-load-packages.html}. When loading RData files, you must specify the path to the file in the \\texttt{load} command. Alternatively, you can save the RData file in the same folder as the R file. In the latter case, make sure that the working directory corresponds to the file location (in RStudio: ``set working directory to source file location''). For more information see also \\url{https://pubs.wsb.wisc.edu/academics/analytics-using-r-2019/read-rdata-files.html}.")
+}
+```
+
+```{r}
+summary(assignment)
+```
+
+```{r, include=FALSE}
+mean_assignment <- mean(assignment)
+```
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat(sprintf("%s%% of the individuals are given access to the training program.", 
+              round(mean_assignment * 100, 2)))
+}
+```
+
+```{r,include=FALSE}
+#Question 2
+```
+\vspace{9pt}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{Consider $\bm{pworky3}$ (the proportion of weeks employed in the third year after assignment, measured in \% between 0 and 100) as outcome variable and regress it on $\bm{assignment}$ using OLS. Interpret the coefficient on $\bm{assignment}$ when considering heteroscedasticity-robust standard errors.}
+\end{enumerate}
+\vspace{3pt}
+
+```{r}
+ols1=lm(pworky3~assignment)
+coeftest(ols1, vcov=vcovHC)
+```
+
+```{r, include=FALSE}
+c2 <- coeftest(ols1, vcov=vcovHC)[2,4]
+p2 <- if (c2 < 0.01) {
+print(1)
+} else if (c2 < 0.05) {
+print(5)
+} else if (c2 < 0.1) {
+print(10)
+} else
+print("CHANGE WORDING!")
+p2
+```
+
+
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+    cat(sprintf("Assignment increases the proportion of weeks worked by roughly %.2f percentage points. This effect is statistically significant at the %d%% level.", 
+                round(ols1$coefficients[2], 2), p2))
+}
+```
+
+```{r,include=FALSE}
+#Question 3
+```
+
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{Add the control variables $\bm{female}$, $\bm{hsdegree}$, and $\bm{geddegree}$ to the regression and re-estimate the effect. Comment on the statistical significance of the coefficients on $\bm{assignment}$, $\bm{female}$, $\bm{hsdegree}$, and $\bm{geddegree}$ when considering homoscedastic standard errors.} 
+\end{enumerate}
+\vspace{3pt}
+
+```{r}
+ols2=lm(pworky3~assignment+female+hsdegree+geddegree)
+summary(ols2)
+```
+
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("All four coefficients are highly statistically significant.")}
+```
+
+```{r,include=FALSE}
+#Question 4
+```
+\vspace{9pt}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{Now consider $\bm{earny3}$ (weekly earnings in US Dollars in the third year after assignment) as outcome and regress it on $\bm{assignment}$, $\bm{female}$, $\bm{hsdegree}$, and $\bm{geddegree}$. Interpret the coefficient on assignment.}
+\end{enumerate}
+\vspace{3pt}
+
+```{r}
+ols3=lm(earny3~assignment+female+hsdegree+geddegree)
+summary(ols3)
+```
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+    cat(sprintf("Assignment increases weekly earnings by roughly %.2f  US dollar.", 
+                round(ols3$coefficients[2], 2)))
+}
+```
+
+```{r,include=FALSE}
+#Question 5
+```
+\newpage
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{Consider homoscedastic and heteroscedastic standard errors for the regression in question~4. Are there any striking differences?}
+\end{enumerate}
+\vspace{3pt}
+
+```{r}
+coeftest(ols3, vcov=vcovHC)
+```
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("The estimations are almost identical, there are no striking differences.")}
+```
+
+
+```{r,include=FALSE}
+#Question 6
+```
+\vspace{9pt}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{Run an F-test to test the null hypothesis that the coefficients on $\bm{hsdegree}$ and $\bm{geddegree}$ are jointly zero using heteroscedastic standard errors.}
+\end{enumerate}
+\vspace{3pt}
+
+```{r}
+ols4=lm(earny3~assignment+female) 
+waldtest(ols4, ols3, vcov = vcovHC)
+```
+
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("The null hypothesis is clearly rejected.")}
+```
+
+```{r,include=FALSE}
+#Question 7
+```
+\vspace{9pt}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{Generate a binary variable $\bm{worky3}$ for employment in year 3, which takes on the value one if $\bm{pworky3}$ (the proportion of weeks employed) is larger than zero and the value zero if $\bm{pworky3}$ is zero. Estimate the employment probability using a linear probability model (LPM) with $\bm{assignment}$, $\bm{haschild}$, $\bm{female}$, and $\bm{age}$ as regressors, as well as an interaction term of $\bm{female}$ and $\bm{haschild}$ as well as $\bm{age}$\^{}2 (has to be generated).}
+\end{enumerate}
+\vspace{3pt}
+
+```{r}
+worky3=pworky3>0
+age2=age^2
+femalehaschild=female*haschild
+ols5=lm(worky3~assignment+haschild+femalehaschild+female+age+age2)
+coeftest(ols5, vcov=vcovHC)
+```
+
+```{r,include=FALSE}
+#Question 8
+```
+\vspace{9pt}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{What is the marginal effect of age on the employment probability for someone who is 20 years old?}
+\end{enumerate}
+\vspace{3pt}
+
+```{r, include=FALSE}
+beta6 <- ols5$coefficients[6]
+beta7 <- ols5$coefficients[7]
+Result1=beta6+beta7*2*20
+Result1
+beta6 <- format(beta6, scientific=FALSE)
+beta7 <- format(beta7, scientific=FALSE)
+
+
+```
+
+```{r, echo=FALSE, results='asis'}
+
+if (knitr::opts_chunk$get('eval')) {
+cat(sprintf(
+    "$$\\text{This expression corresponds to the partial derivative of the model equation with respect to age:}$$
+    $$\\frac{\\partial \\ \\widehat{\\text{worky3}}}{\\partial \\ \\text{age}} = \\hat{\\beta}_{\\text{age}} + \\hat{\\beta}_{\\text{age2}} \\cdot 2 \\cdot \\text{age}.$$\\newline
+  $$\\text{So then in our example:} %s %s \\cdot 2 \\cdot 20 = %f $$
+  \\text{The marginal effect is about } %.2f%% \\text{.}",beta6, beta7, Result1, round(Result1 * 100, 2)))}
+
+```
+
+```{r,include=FALSE}
+#Question 9
+```
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{Compute the average effect on the probability to work of being a woman with at least one child vs. being a male with no children. Interpret the results.}
+\end{enumerate}
+\vspace{3pt}
+
+```{r, include=FALSE}
+beta5 <- ols5$coefficients[5]
+beta3 <- ols5$coefficients[3]
+beta4 <- ols5$coefficients[4]
+Result2=beta5+beta3+beta4
+
+```
+```{r}
+print(ols5$coefficients["female"] + ols5$coefficients["haschild"]
+      + ols5$coefficients["femalehaschild"])
+```
+
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat(sprintf("The average effect is %s%%", round(Result2 * 100, 2)))}
+```
+
+
+```{r,include=FALSE}
+#Question 10
+```
+\vspace{9pt}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{Compute the predicted probabilities of working and present them in a histogram. Are they within theoretically feasible bounds (of 0 and 1)?}
+\end{enumerate}
+\vspace{3pt}
+
+
+
+```{r,  eval=FALSE}
+#Another way to present the histogram
+fv_lpm=fitted(ols5)
+summary(fv_lpm)
+hist_fv_lpm =hist(fv_lpm,col="lightblue",main="Fitted values LPM")
+```
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("Yes, both the minimal and the maximal value are within the interval $[0, 1]$ as they should, being probabilities.")}
+```
+
+
+
+```{r,include=FALSE}
+#Question 11
+```
+\vspace{9pt}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{Use the same variables and estimate a probit model. Give an interpretation of the coefficient on $\bm{assignment}$ and compare it to the respective coefficient in the LPM.}
+\end{enumerate}
+\vspace{3pt}
+
+```{r}
+probit1=glm(worky3~assignment+haschild+femalehaschild+female+age+age2, 
+            family=binomial(probit))
+summary(probit1)
+```
+
+```{r, include=FALSE}
+c11 <- summary(probit1)$coefficients[2,4]
+p11 <- if (c11 < 0.01) {
+print(1)
+} else if (c11 < 0.05) {
+print(5)
+} else if (c11 < 0.1) {
+print(10)
+} else
+print("CHANGE WORDING!")
+p11
+```
+
+```{r, include=FALSE}
+c7 <- coeftest(ols5, vcov=vcovHC)[2,4]
+p7 <- if (c7 < 0.01) {
+print(1)
+} else if (c7 < 0.05) {
+print(5)
+} else if (c7 < 0.1) {
+print(10)
+} else
+print("CHANGE WORDING!")
+p7
+```
+
+
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+    cat(sprintf("Being assigned to the program has a positive effect on the probability of being employed in year 3, the result is statistically significant at the %d%% level. The estimated coefficient is not directly interpretable as causal effect in a probit model.
+The coefficient in the LPM model is also positive and the p-value statistically significant at the %d%% level. In the LPM model, the coefficient can be directly interpreted as causal effect: being assigned to the program increases the probability of being employment in year 3 by %.0f percentage points.
+", p11,p7,round(ols5$coefficients[2]*100, 0)))
+}
+```
+
+```{r,include=FALSE}
+#Question 12
+```
+\vspace{9pt}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{Calculate the average effect on the probability to work of being a woman with at least one child vs. being a male with no children based on the probit model. Compare your results to the effect obtained from the LPM in question 9. Are there important differences?}
+\end{enumerate}
+\vspace{9pt}
+
+
+```{r, width.cutoff=60}
+probiteffect <- pnorm(cbind(1,assignment,1,1,1,age,age2)%*%probit1$coefficients)-
+                pnorm(cbind(1,assignment,0,0,0,age,age2)%*%probit1$coefficients)
+mean(probiteffect)
+```
+
+
+```{r, include=FALSE}
+probiteffect= pnorm(cbind(1,assignment,1,1,1,age,age2)%*%probit1$coefficients)-
+              pnorm(cbind(1,assignment,0,0,0,age,age2)%*%probit1$coefficients)
+Probiteffect <- mean(probiteffect)
+LPMeffect <- Result2
+Probiteffect
+LPMeffect
+
+op = function(x, d=6) sprintf(paste0("%1.",d,"f"), x) 
+Probeffect <- op(Probiteffect)
+LPMeffect <-op(LPMeffect)
+```
+
+```{r eval=FALSE, include=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+    cat(sprintf("\\begin{tabular*}{220pt}{@{}l@{\\extracolsep{\\fill}}r@{}}%%\n
+Effect obtained from the probit model: & %s \\\\\n
+Effect obtained from the LPM: & %s \\\\\n
+\\end{tabular*}\n
+\\vspace{3pt}\n
+
+The effect estimated based on the probit model is not the same as those predicted with the LPM, because we now rely on a nonlinear (rather than linear) model.
+", Probeffect, LPMeffect))
+}
+```
+
+
+```{r,include=FALSE}
+#Question 13
+``` 
+\vspace{9pt}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{Compute the marginal effects of the regressors at the means of the other regressors for your probit model. Also compute the average marginal effects of the regressors.(See \url{https://search.r-project.org/CRAN/refmans/mfx/html/probitmfx.html}.)}
+\end{enumerate}
+\vspace{-3pt}
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("### Marginal effects of the regressors at the means of the other regressors
+The fit of probit is nonlinear and depends on the values of the regressors. One option is to replace $x$ with their sample averages $\\rightarrow$ partial effect at mean values of other regressors (\\texttt{atmean = TRUE})
+\\vspace{3pt}")}
+```
+
+
+
+```{r}
+probitmfx(probit1, data=JC, atmean=TRUE)
+```
+
+```{r results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("### Average marginal effects of the regressors
+Another approa ch is to first compute individual partial effect for every individual in the sample, then take an average over those individual effects (\texttt{atmean = FALSE}).
+\\vspace{3pt}")}
+```
+
+
+```{r}
+# average marginal ("treatment") effects
+probitmfx(probit1, data=JC, atmean=FALSE)
+```
+The Tobit model\footnote{James Tobin 1918 -- 2002, Nobel Prize in 1981} is a model with a censored dependent variable. It is a linear regression model where all the negative dependent values are put to $0$, in other words
+$$
+Y_i = \begin{cases}
+Z_i & \text{if} \ Z_i > 0,\\
+0 & \text{if} \ Z_i \leq 0,
+\end{cases}
+$$
+where $Z_i = \mathbf{X}\bm{\beta} + U_i$ and $U_i \sim {\cal N}(0, \sigma^2)$, see Figure \ref{Tobit}. One can show that the conditional mean in the total population is given by
+\begin{equation}\label{cond_mean_Tobit}
+\mathbb{E}(Y | X = \mathbf{x}) = \Phi\left(\frac{\mathbf{x}\bm{\beta}}{\sigma}\right) \mathbf{x}\bm{\beta} + \sigma \phi\left(\frac{\mathbf{x}\bm{\beta}}{\sigma}\right),
+\end{equation}
+where $\Phi(\cdot)$ is the standard normal cumulative distribution function (\texttt{pnorm}) and $\phi(\cdot)$ is the standard normal probability density function (\texttt{dnorm}).
+
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.9\textwidth, height=5cm]{Tobit.png}
+    \caption{Tobit Model(source: \url{https://stat.ethz.ch/~stahel/courses/regression/reg-gen.pdf})}
+    \label{Tobit}
+\end{figure}
+
+```{r,include=FALSE}
+#Question 14
+``` 
+\vspace{9pt}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{Now consider the variable $\bm{earny3}$ as outcome and explain why it is a reasonable candidate for a tobit model.}
+\end{enumerate}
+\vspace{3pt}
+
+
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("As weekly earnings cannot be negative (i.e. earnings of zero constitute a lower bound), a linear specification of $E\\left(y\\mid x\\right)$ is not reasonable, in particular for ranges of weekly earnings that are rather low (i.e. close to or exactly zero). Using a linear model in such a situation may yield negative predictions of earnings for some values of $X$, even though negative earnings are practically infeasible. The tobit model may therefore appear more appropriate because it can be used for modeling regression functions with such censored outcomes (that have a lower or upper bound), at the price of imposing distributional assumptions on the error term (e.g. normality).")}
+```
+
+
+```{r,include=FALSE}
+#Question 15
+``` 
+\vspace{9pt}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{Run both (1) a tobit and (2) a linear regression using the same regressors as for the probit model before. Is the statistical significance of the coefficients in the tobit and the linear model comparable? What do you make of the different magnitudes of the coefficients in the tobit and the linear model?}
+\end{enumerate}
+\vspace{-3pt}
+
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("### Tobit")}
+```
+
+
+```{r}
+model=earny3~assignment+haschild+femalehaschild+female+age+age2
+tobit=censReg(model,data=JC)
+summary(tobit)
+```
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("### OLS, homoscedastic error terms")}
+```
+
+
+```{r}
+ols6=lm(model)
+summary(ols6)
+```
+
+### OLS, heteroscedastic error terms
+
+```{r}
+coeftest(ols6, vcov=vcovHC)
+```
+
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("Yes, the statistical significance is comparable. Coefficients from the tobit model cannot be directly interpreted as causal effects (but they provide information about the signs of the effects), thus the magnitudes of the tobit and the OLS coefficients are not directly comparable.")}
+```
+
+
+```{r,include=FALSE}
+#Question 16
+``` 
+
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{Provide the fitted values of the tobit model and compare them to those of the linear model.}
+\end{enumerate}
+\vspace{3pt}
+
+
+```{r results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("### Tobit")}
+```
+```{r}
+xb <- cbind(1,assignment, haschild, 
+            femalehaschild,
+            female, age,
+            I(age^2))%*%tobit$estimate[1:7]
+sigma = exp(tobit$estimate[8])
+pred = (pnorm((xb)/sigma))*xb+sigma*(
+        dnorm((xb)/sigma))
+hist(pred, col = "red", 
+     main = "Tobit", 
+     xlab = "predictions")
+```
+
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("### OLS")}
+```
+```{r}
+fv_lpm2=fitted(ols6)
+hist_fv_lpm =hist(fv_lpm2,col="lightblue",
+                  main="Fitted values LPM", 
+                  xlab = "predictions")
+```
+
+
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("The histograms of the predicitons for the two models are comparable")}
+```
+```{r,include=FALSE}
+#Question 17
+``` 
+\vspace{9pt}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{Calculate the average effect on $\bm{earny3}$ of being a woman with at least one child vs. being a male with no children based on the tobit regression and compare the result to that of the linear regression.}
+\end{enumerate}
+\vspace{3pt}
+
+```{r}
+xb1<-cbind(1,assignment, 1, 1, 1, age,  I(age^2) )%*%tobit$estimate[1:7]
+xb2<-cbind(1,assignment, 0, 0, 0, age,  I(age^2) )%*%tobit$estimate[1:7]
+sigma=exp(tobit$estimate[8])
+predictions1=(pnorm( (xb1) / sigma))*xb1+sigma*(dnorm( (xb1) / sigma))
+predictions2=(pnorm( (xb2) / sigma))*xb2+sigma*(dnorm( (xb2) / sigma))
+Tobiteffect <- mean(predictions1-predictions2)
+
+beta5 <- ols6$coefficients[5]
+beta3 <- ols6$coefficients[3]
+beta4 <- ols6$coefficients[4]
+LPMeffect=beta5+beta3+beta4
+
+```
+
+
+
+\vspace{9pt}
+
+```{r eval=FALSE, include=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+    cat(sprintf("\\begin{tabular*}{220pt}{@{}l@{\\extracolsep{\\fill}}r@{}}%%\n
+Effect obtained from the Tobit model: & %.5f \\\\\n
+Effect obtained from the LPM: & %.5f \\\\\n
+\\end{tabular*}\n
+\\vspace{3pt}\n
+
+The effect estimated based on the Tobit model is different from the effect predicted with the LPM.
+", Tobiteffect, LPMeffect))
+}
+```
+
+## Theoretical questions
+
+```{r,include=FALSE}
+#Question 18
+``` 
+\vspace{1mm}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{Which implication does the randomness of the variable $\bm{assignment}$ have concerning its correlation with the error term in a regression of the outcome on $\bm{assignment}$?}
+\end{enumerate}
+\vspace{3pt}
+
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("Randomness implies that the variable $assignment$ and the error term are not correlated with each other, which is a precondition for recovering the causal effect by means of such a regression.")}
+```
+
+
+```{r,include=FALSE}
+#Question 19
+``` 
+\vspace{9pt}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{What is the conceptual difference between homoscedastic and heteroscedastic standard errors?}
+\end{enumerate}
+\vspace{3pt}
+
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("Homoscedastic standard errors rely on the assumption that the conditional variance of $U$ given $X$, ${Var(U\\mid X=x)}$, is constant for all values of $x$.
+
+Heteroscedastic standard errors do not rely on this assumption such that the conditional ${Var(U\\mid X=x)}$ may differ across different values of $x$.")}
+```
+
+```{r,include=FALSE}
+#Question 20
+``` 
+\vspace{9pt}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{What do the coefficients in a probit model tell us about the causal effects of a regressor on a dependent variable?}
+\end{enumerate}
+\vspace{3pt}
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("We cannot directly interpret the coefficients from a probit model as causal effects, but they are informative about the sign of the partial effect of a regressor on the outcome variable.")}
+```
+
+
+```{r,include=FALSE}
+#Question 21
+``` 
+\newpage
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{There are two common ways to compute effects for non-linear regression models: one is the marginal effect of some regressor at the means of all other regressors; the other one is the average marginal effect. Can you shortly explain the main difference between these two effects?}
+\end{enumerate}
+\vspace{3pt}
+
+
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("In case of a nonlinear regression model, the partial effect of a regressor depends on a particular value of the given regressor, as well as on the values of other regressors. The relationship between the outcome variable and regressors is not linear and linked through some (presumably known) function $G(\\cdot)$:
+$$
+\\E(Y | X) = G(\\beta_0 + X\\beta_1),
+$$
+where the regressor $X$ is a (column) vector of values $x_1, x_2, \\ldots, x_n$. Then the partial effect of a continuous regressor $X$ on $\\E(Y | X)$ is given by
+$$
+\\frac{\\partial}{\\partial x_1}\\E(Y | X) = g(\\beta_0 + X\\beta_1)\\cdot\\beta_1,
+$$
+where $g = G'$ (recall the chain rule for the derivative!). To compute the marginal effect of a continuous regressor at the means of all other regressors, one must plug in mean value of the regressor $X$, denoted by $\\bar{x}$:
+\\begin{equation}\\label{partial_effect_1}
+\\frac{\\partial}{\\partial x_1}\\E(Y | \\bar{x}) = g(\\beta_0 + \\bar{x}\\beta_1)\\cdot\\beta_1.
+\\end{equation}
+In order to obtain the average marginal effect, we plug in the values of the regressor $X$ of all individuals in the population to compute the partial effects and finally calculate the average over all partial effects in the population:
+\\begin{equation}\\label{partial_effect_2}
+\\E\\left(\\frac{\\partial}{\\partial x_1}\\E(Y | X)\\right) = \\frac{1}{n}\\sum\\limits_{i=1}^n g(\\beta_0 + x_i\\beta_1)\\cdot\\beta_1.
+\\end{equation}
+Observe that \\eqref{partial_effect_1} and \\eqref{partial_effect_2} will not in general yield the same results as one cannot pull the summation in \\eqref{partial_effect_2} into the non-linear function $g$.")}
+```
+
+
+```{r,include=FALSE}
+#Question 22
+``` 
+\vspace{9pt}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{What will be the consequence of estimating a limited dependent variable which does not take values beyond a certain threshold with a standard OLS model?}
+\end{enumerate}
+\vspace{3pt}
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("The OLS may yield predictions of the outcome variable beyond the threshold. In many applications, the lower bound of the outcome variable is zero (e.g. hours of work). When estimating such an outcome variable by OLS, one might obtain negative (and thus, infeasible) predictions for the hours of work. Moreover, the error terms obtained for observations below the threshold of zero will all be positive such that ${E\\left(U \\mid X\\right)>0}$, implying a violation of the assumption that the conditional mean of the error is zero: $E\\left(U\\mid X\\right)=0$.
+")}
+```
+
+```{r,include=FALSE}
+#Question 23
+``` 
+\vspace{9pt}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{How do maximum likelihood estimators (as for instance used for the estimation of probit and tobit models) differ from OLS in terms of the assumptions invoked about the error term $\mathbf{u}$?}
+\end{enumerate}
+\vspace{3pt}
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("MLE estimators invoke the assumption that the error term $U$ follows a particular distribution, e.g. (in the case of a probit model) that it is normally distributed ${U\\sim \\left(N,\\sigma^2\\right)}$, whereas the OLS only assumes ${E\\left(u\\mid x\\right)=0}$ but does not assume any particular distributional form of the error term (i.e. normality is not required). However, if the distributional assumption holds, MLE is most efficient.")}
+```
+
+
+```{r,include=FALSE}
+#Question 24
+``` 
+\vspace{9pt}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{Assume the following non-linear regression model, where the vector $\mathbf{x}$ contains a constant and several regressors and $\bm{\beta}$ contains the corresponding coefficients: $\bm{E\left(y\mid x\right)=}\mathbf{log}\bm{{\left(x\beta\right)}}$. Derive the marginal effect of the second element in $\mathbf{x}$ (the coefficient of which is denoted by $\bm{\beta_2}$).}
+\end{enumerate}
+\vspace{3pt}
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("Using the chain rule and remembering that $\\frac{\\mathrm{d}}{\\mathrm{d}x} \\log x = \\frac{1}{x}$, we obtain
+$$
+\\frac{\\partial}{\\partial x_k}\\E(Y | \\x) = \\frac{\\beta_k}{\\beta_0 + \\sum\\limits_{i=1}^n x_i \\beta_i}
+$$")}
+```
+
+
+```{r,include=FALSE}
+#Question 25
+``` 
+
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{Explain by means of an example, how a misspecification of the conditional expectation function $\bm{E\left(y\mid x\right)}$ may entail a violation of $\bm{E\left(u\mid x\right)}$.}
+\end{enumerate}
+\vspace{3pt}
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("Let’s take as an example the incorrect use of the OLS model when the Tobit model would be appropriate due to many observations with outcome values of zero, which is the lower bound of $Y$. For values of $X_i$ for which the outcome $Y_i$ is equal to zero, $\\E(U_i | X)$ is necessarily positive, because the OLS prediction is negative, while $Y_i$ cannot be negative:
+$$
+\\E(Y_i - \\hat{Y}_i | X) = \\E(U_i | X) \\geq 0.
+$$
+See Fig. \\ref{Tobit} for an illustration.")}
+```
+
+\vspace{6pt}
+
+
+# Part 2: Quantile regression
+
+The data set **"growth_PC1"** contains information on the growth rates of GDP/capita between 1985 and 1987 for 90 countries along with a set of regressors (measured in 1985):
+
+```{r, include=FALSE}
+knitr::kable(head(mtcars[, 1:3]), "latex")
+```
+
+\vspace{2mm}
+
+\begin{tabularx}{\textwidth}{ll}
+\toprule
+\textbf{Variable name} & \textbf{Description} \\
+\midrule
+y\_net  & Log Annual Change in Per Capita GDP \\
+lgdp2 & Log Initial Per Capita GDP \\
+mse2 &  Male Secondary Education \\
+fse2 &  Female Secondary Education \\
+fhe2 &  Female Higher Education \\
+mhe2 & Male Higher Education \\
+lexp2 & Log Life Expectancy \\
+lintr2 &    Log Human Capital \\
+gedy2 & Education/GDP \\
+ly2 &   Investment/GDP \\
+gcony2 &    Public Consumption/GDP \\
+lblakp2 &   Log Black Market Premium \\
+pol2 &  Political Instability \\
+ttrad2 &    Growth Rate Terms Trade \\
+\bottomrule
+\end{tabularx}
+
+## Questions
+
+```{r,include=FALSE}
+#Question 1
+``` 
+\vspace{1mm}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries]
+\item \textbf{Regress the growth rate on all explanatory variables based on OLS. Which coefficients are significant at the 5 percent level? Do they have the expected sign from a theoretical perspective?}
+\end{enumerate}
+\vspace{3pt}
+
+```{r}
+#Remove previous data from the memory
+rm(list=ls())
+
+
+#load libraries
+library(quantreg)
+library(lmtest)
+```
+
+
+```{r}
+load("growth_PC1.RData")
+#load data
+
+attach(growth)
+```
+
+```{r}
+model = (y_net ~lgdp2+fse2+fhe2+mse2+mhe2+lexp2+lintr2+gedy2+
+           Iy2+gcony2+lblakp2+pol2+ttrad2)
+ols=lm(model)
+summary(ols)
+coeftest(ols, vcovHC=cov) 
+```
+
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("
+**lgdp2:** The coefficient \\texttt{Log Initial Per Capita GDP} is highly statistically significant (at the 1% level) and has the expected sign because theory predicts that an economy with a lower initial GDP level grows stronger than a country with a higher initial GDP level.
+
+**mse2:** \\texttt{Male Secondary Education} is statistically significant at the 1% level. This coefficient has the expected sign, because an increase in education leads to an increase in the GDP.
+
+**lexp2:** The \\texttt{Log Life Expectancy} is also significant at the 1% level and has the expected sign. An increase in life expectancy leads to an increase in GDP change.
+
+**lblakp2:** The \\texttt{Black Market Premium} is  also highly statistically significant (at the 1% level) and the sign of the coefficient meets the theoretical expectation because the black market premium is often used as a proxy for market distortions and macroeconomic instability.
+
+**ttrad2:** The coefficient of the variable \\texttt{Growth Rate Terms Trade} is statistically significant at the 5% level and has the expected sign, because trade is positively correlated with the growth rate of the GDP.")}
+```
+
+
+
+```{r,include=FALSE}
+#Question 2
+``` 
+\vspace{9pt}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{What does the fact that the dependent variable is expressed as log of the growth rate imply for the interpretation of the coefficients? Likewise, what do the coefficients tell us when the explanatory variables are in logs (instead of levels)?}
+\end{enumerate}
+\vspace{3pt}
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("
+**Dependent variable: $\\mathbf{log{(y)}}$; Independent variable: $\\mathbf{x}$**
+$$\\%\\Delta y=\\left(100\\beta\\right)\\Delta x$$
+For regressors in levels: increasing $X$ by 1 unit changes the growth rate by roughly $100\\beta$ percent (works well for small changes in $y$) or exactly by $100(exp(\\beta)-1)$ percent, ceteris paribus.
+
+\\vspace{9pt}
+
+**Dependent variable: $\\mathbf{log{(y)}}$; Independent variable: $\\mathbf{log\\left(x\\right)}$**
+$$\\%\\Delta y=\\beta\\%\\Delta x$$
+For regressors in log: increasing $X$ by 1 percent changes growth rate by $\\beta$ percent.
+")}
+```
+
+```{r,include=FALSE}
+#Question 3
+``` 
+\newpage
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{Run a median regression and compare the results to the OLS estimates (Hint: use command $\bm{rq}$ in the R package $\bm{quantreg}$, estimate standard errors with bootstrap). Are there important differences in terms of the size of the coefficients and their level of significance? In what respect does the interpretation of the coefficients differ?}
+\end{enumerate}
+\vspace{3pt}
+
+```{r}
+growth<-rq(y_net~lgdp2+fse2+fhe2+mse2+mhe2+lexp2+lintr2+gedy2+
+             Iy2+gcony2+lblakp2+pol2+ttrad2, tau=0.5)
+summary.rq(growth, se="boot", R=999)
+```
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("Coefficients of only three regressors remain significant at the 5% level, i.e. $lgdp2$, $mse2$, and $lblakp2$. The magnitudes of the corresponding effects are comparable to the OLS estimates.
+Interpretation now refers to the median (rather than average) country in the sample with respect to growth rate. The interpretation of the effects of variables in log and levels are the same for the quantile and the OLS regression.")}
+```
+
+
+```{r,include=FALSE}
+#Question 4
+``` 
+\vspace{9pt}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{Now include only those regressors with significant coefficients (at the 5 percent level) in the median regression plus all male education variables ($\bm{mse2}$, $\bm{mhe2}$). Redo the median regression and compare it to a quantile regression at the 0.1\textsuperscript{th} conditional quantile. Any striking differences?}
+\end{enumerate}
+\vspace{-3pt}
+
+
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("### Median regression")}
+```
+
+
+```{r}
+growth0.5<-rq(y_net~lgdp2+mse2+mhe2+lblakp2, tau=0.5)
+summary.rq(growth0.5, se="boot", R=999)
+```
+
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("None of the coefficients are significant at the 5% level.")}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("### 0.1\\textsuperscript{th} conditional quantile
+")}
+```
+
+
+
+```{r}
+growth0.1<-rq(y_net~lgdp2+mse2+mhe2+lblakp2, tau=0.1)
+summary.rq(growth0.1, se="boot", R=999)
+```
+
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("$lblakp2$ is significant at the 5% level. When the black market premium increases by 1%, the growth rate decreases by 0.06%.")}
+```
+
+
+
+
+```{r,include=FALSE}
+#Question 5
+``` 
+\vspace{9pt}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{Plot the coefficients of the regressors used in 4. for ranks $\bm{\tau=\{0.1,\: 0.20,\: \ldots,\: 0.80,\: 0.90\}}$ along with pointwise confidence intervals.}
+\end{enumerate}
+\vspace{3pt}
+
+```{r}
+plot(summary(rq(y_net~lgdp2+mse2+mhe2+lblakp2,tau = 1:9/10)))
+```
+
+
+
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("There is evidence that the estimated effects and their confidence intervals vary with the quantile considered for the analysis.")}
+```
+
+## Theoretical questions
+
+```{r,include=FALSE}
+#Question 6
+``` 
+\vspace{1mm}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume]
+\item \textbf{You have an i.i.d. sample of the Swiss labor force and estimate the effect of participating in a randomized (i.e. experimentally assigned) training program $\mathbf{x}$ (a dummy variable: 1=getting the training, 0=not getting the training) on log wages per day $\mathbf{y}$ (in CHF). The table below provides the quantile coefficient estimates $\bm{\hat{\theta}}$ on the training dummy at two different ranks as well as the respective OLS coefficient when regressing $\mathbf{y}$ linearly on a constant and $\mathbf{x}$ (the constants are not reported).}
+
+```{r, include=FALSE}
+knitr::kable(head(mtcars[, 1:3]), "latex")
+```
+
+
+\begin{tabularx}{\textwidth}{rcc}
+& $\hat{\theta}$ &  p-values \\
+\midrule
+$\tau=0.10$ &   $0.03$ &    $0.05$ \\
+$\tau=0.90$ &   $0.15$ &    $0.02$ \\
+OLS estimate &  $0.09$ &    $0.01$ \\
+\midrule
+\end{tabularx}
+
+\textbf{Did the training succeed in decreasing wage inequalities between low- and high-income earners? Explain your conclusion.}
+\end{enumerate}
+\vspace{3pt}
+
+
+
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("No, because the estimated positive effect is larger for richer people (0.10th vs 0.90th quantile). Thus, the training program increased inequality.")}
+```
+
+```{r,include=FALSE}
+#Question 7
+``` 
+\vspace{9pt}
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume, series=outerlist]
+\item \textbf{The slope coefficients (i.e., the coefficients excluding the constant) of which of the following \textbf{estimators A-C} are (asymptotically) equivalent if?}
+  \begin{enumerate}[label=(\roman*), align=parleft, font=\bfseries]
+  \item \textbf{homoscedasticity holds but errors are not symmetrically distributed}
+  \item \textbf{errors are symmetrically distributed but homoscedasticity does not hold}
+  \item \textbf{homoscedasticity holds and errors are symmetrically distributed}
+  \end{enumerate}
+\vspace{5pt}
+\textbf{Give the intuition, why this is (not) the case.}
+
+\begin{spacing}{1.5}
+\textbf{Estimator A:   OLS estimator} \\
+\textbf{Estimator B:   quantile regression estimator at the median ($\bm{\tau=0.5}$)} \\
+\textbf{Estimator C:   quantile regression estimator at the third quartile ($\bm{\tau=0.75}$)}
+\end{spacing}
+\vspace{-1.5mm}
+\end{enumerate}
+\vspace{3pt}
+
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("\\begin{enumerate}[leftmargin=*, label=(\\roman*), align=parleft]
+\\item All three are equivalent.
+\\item A and B are equivalent.
+\\item	All three are equivalent.
+\\end{enumerate}")}
+```
+
+
+
+```{r,include=FALSE}
+#Question 8
+``` 
+\newpage
+\begin{enumerate}[leftmargin=*, align=parleft, labelsep=1em, font=\bfseries, resume=outerlist]
+\item \textbf{Take a look at the following two distributional assumptions about the error term $\mathbf{e}$ conditional on $\mathbf{x}$ in the regression of $\mathbf{y}$ on $\mathbf{x}$. Discuss whether OLS and linear quantile regression at the median are (i) consistent and (ii) which one is more efficient and why.}
+
+\vspace{5mm}
+
+\begin{figure}
+\centering
+\begin{subfigure}[b]{0.4\linewidth}
+\begin{tikzpicture}
+  \draw[->] (-2.5, 0) -- (2.5, 0) node[right] {\small{$x$}};
+  \draw[->] (0, 0) -- (0, 1.5);
+  \draw[thick, blue, domain=-2.5:2.5, smooth, variable=\x] plot({\x}, {exp(-(\x*\x))});
+\end{tikzpicture}
+\caption{$e | x$ is normally distributed with mean $0$}
+\end{subfigure}
+\hspace{1cm}
+\begin{subfigure}[b]{0.4\linewidth}
+\begin{tikzpicture}
+  \draw[->] (-2.5, 0) -- (2.5, 0) node[right] {\small{$x$}};
+  \draw[->] (0, 0) -- (0, 1.5);
+  \draw[thick, blue] (-2.5, 0) -- (-1, 0) -- (-1, 1) -- (1, 1) -- (1, 0) -- (2.5, 0);
+\end{tikzpicture}
+\caption{$e | x$ is uniformly distributed}
+\end{subfigure}
+\caption{Distribution of error term $e$}
+\label{error_term}
+\end{figure}
+\end{enumerate}
+\vspace{3pt}
+
+
+```{r, echo=FALSE, results='asis'}
+if (knitr::opts_chunk$get('eval')) {
+  cat("\\begin{enumerate}[leftmargin=*, label=(\\roman*), align=parleft]
+\\item Both estimators are consistent in (a) and (b).
+\\item OLS is more efficient in (a) because tails are ``thin'', median regression is more efficient in (b) because tails are ``fat''.
+\\end{enumerate}")}
+```
+
+
+
+
